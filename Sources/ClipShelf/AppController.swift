@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import ApplicationServices
+import Carbon
 import ClipShelfCore
 import Observation
 
@@ -89,13 +90,22 @@ final class ShelfPanel: NSPanel {
         pasteTask?.cancel()
         if !isVerificationMode { monitor.capturePending() }
         if let front = NSWorkspace.shared.frontmostApplication, front.processIdentifier != ProcessInfo.processInfo.processIdentifier { target = front }
-        if panel == nil {
-            let p = ShelfPanel(contentRect: NSRect(x: 0, y: 0, width: 1080, height: 650), styleMask: [.titled, .closable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
+        let secureInput = IsSecureEventInputEnabled()
+        if panel == nil || panel?.styleMask.contains(.nonactivatingPanel) != secureInput {
+            // AppKit sets the nonactivating window-server behavior at initialization.
+            // Keep the protected app active while presenting history over its password field.
+            let previousFrame = panel?.frame
+            panel?.setFrameAutosaveName("")
+            panel?.close()
+            var style: NSWindow.StyleMask = [.titled, .closable, .resizable, .fullSizeContentView]
+            if secureInput { style.insert(.nonactivatingPanel) }
+            let p = ShelfPanel(contentRect: NSRect(x: 0, y: 0, width: 1080, height: 650), styleMask: style, backing: .buffered, defer: false)
             p.title = "ClipShelf"; p.titleVisibility = .hidden; p.titlebarAppearsTransparent = true
             p.isReleasedWhenClosed = false; p.isFloatingPanel = true; p.level = .floating
             p.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
             p.minSize = NSSize(width: 880, height: 530)
             p.contentView = NSHostingView(rootView: InterfaceRoot(preferences: preferences) { ShelfView(app: self) })
+            if let previousFrame { p.setFrame(previousFrame, display: false) }
             p.setFrameAutosaveName("ClipShelfPanel")
             panel = p
         }
@@ -106,7 +116,7 @@ final class ShelfPanel: NSPanel {
         }
         presentationID = UUID()
         panel?.level = .floating
-        NSApp.activate(ignoringOtherApps: true)
+        if !secureInput { NSApp.activate() }
         panel?.makeKeyAndOrderFront(nil)
     }
     func hide() { panel?.orderOut(nil) }
@@ -176,7 +186,7 @@ final class ShelfPanel: NSPanel {
         hide()
         pasteTask?.cancel()
         pasteTask = Task { [weak self] in
-            guard destination.activate(options: []) else { self?.show(); self?.notify("Copied, but could not switch to the app."); return }
+            guard destination.isActive || destination.activate(options: []) else { self?.show(); self?.notify("Copied, but could not switch to the app."); return }
             for _ in 0..<20 {
                 try? await Task.sleep(for: .milliseconds(40))
                 guard !Task.isCancelled else { return }

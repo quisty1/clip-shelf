@@ -1,4 +1,5 @@
 import AppKit
+import Carbon
 import ClipShelfCore
 
 @main struct WindowChecks {
@@ -15,6 +16,8 @@ import ClipShelfCore
         }
         let prefs = Preferences(defaults: defaults)
         let controller = try AppController(directory: directory, preferences: prefs)
+        checkSecureInputPresentation(controller, application: application)
+        try checkHotKeyDispatch()
         let board = NSPasteboard.withUniqueName()
         defer { board.releaseGlobally() }
         board.setString("Before recording", forType: .string)
@@ -55,5 +58,59 @@ import ClipShelfCore
         guard application.appearance == nil else { print("FAIL system appearance override remains"); exit(1) }
         guard application.mainMenu?.items.last?.title == "Правка" else { print("FAIL translated native menu"); exit(1) }
         print("PASS multiple preview titles, live appearance mappings, native menus")
+    }
+
+    private static func checkSecureInputPresentation(_ controller: AppController, application: NSApplication) {
+        controller.isVerificationMode = true
+        defer { controller.hide() }
+        guard EnableSecureEventInput() == noErr else {
+            print("FAIL could not enable Secure Input for the window check"); exit(1)
+        }
+        controller.show()
+        let protectedPanel = application.windows.first { $0 is ShelfPanel && $0.isVisible }
+        let stillProtected = IsSecureEventInputEnabled()
+        DisableSecureEventInput()
+        guard stillProtected, protectedPanel?.styleMask.contains(.nonactivatingPanel) == true else {
+            print("FAIL history did not open as a nonactivating panel during Secure Input"); exit(1)
+        }
+        controller.hide()
+        guard !IsSecureEventInputEnabled() else { return }
+        controller.show()
+        guard let regularPanel = application.windows.first(where: { $0 is ShelfPanel && $0.isVisible }),
+              !regularPanel.styleMask.contains(.nonactivatingPanel) else {
+            print("FAIL history did not return to its regular panel after Secure Input"); exit(1)
+        }
+        print("PASS secure and regular history window presentation")
+    }
+
+    private static func checkHotKeyDispatch() throws {
+        let hotKey = HotKeyService()
+        defer { hotKey.stop() }
+        var received = 0
+        hotKey.onPress = { received += 1 }
+        try hotKey.register(Shortcut(keyCode: UInt32(kVK_F19), modifiers: UInt32(cmdKey | shiftKey | controlKey), label: "⌃⇧⌘F19"))
+
+        func dispatch(signature: OSType, shortcutID: UInt32) {
+            var event: EventRef?
+            guard CreateEvent(nil, OSType(kEventClassKeyboard), UInt32(kEventHotKeyPressed), GetCurrentEventTime(), 0, &event) == noErr,
+                  let event else { print("FAIL could not create hotkey event"); exit(1) }
+            defer { ReleaseEvent(event) }
+            var id = EventHotKeyID(signature: signature, id: shortcutID)
+            guard SetEventParameter(event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID), MemoryLayout<EventHotKeyID>.size, &id) == noErr else {
+                print("FAIL could not set hotkey event ID"); exit(1)
+            }
+            _ = SendEventToEventTarget(event, GetEventDispatcherTarget())
+        }
+
+        dispatch(signature: 0x54455354, shortcutID: 1)
+        guard received == 0 else { print("FAIL an unrelated shortcut opened history"); exit(1) }
+        dispatch(signature: 0x434C4950, shortcutID: 1)
+        guard received == 1 else { print("FAIL the event dispatcher did not invoke the registered shortcut"); exit(1) }
+        try hotKey.register(Shortcut(keyCode: UInt32(kVK_F18), modifiers: UInt32(cmdKey | shiftKey | controlKey), label: "⌃⇧⌘F18"))
+        dispatch(signature: 0x434C4950, shortcutID: 1)
+        guard received == 1 else { print("FAIL a replaced shortcut opened history"); exit(1) }
+        dispatch(signature: 0x434C4950, shortcutID: 2)
+        guard received == 2 else { print("FAIL the replacement shortcut did not open history"); exit(1) }
+        print("PASS registered shortcut dispatch and unrelated event rejection")
     }
 }

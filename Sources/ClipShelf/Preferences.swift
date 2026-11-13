@@ -46,31 +46,52 @@ struct Shortcut: Codable, Equatable {
 }
 
 nonisolated private func hotKeyHandler(_ next: EventHandlerCallRef?, _ event: EventRef?, _ context: UnsafeMutableRawPointer?) -> OSStatus {
-    guard let context else { return OSStatus(eventNotHandledErr) }
-    // Carbon dispatches application event handlers on the main event loop.
+    guard let event, let context else { return OSStatus(eventNotHandledErr) }
+    var id = EventHotKeyID()
+    guard GetEventParameter(event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID),
+                            nil, MemoryLayout<EventHotKeyID>.size, nil, &id) == noErr else {
+        return OSStatus(eventNotHandledErr)
+    }
+    // Carbon dispatches these hotkey events on the main event loop.
     let address = UInt(bitPattern: context)
     return MainActor.assumeIsolated {
-        Unmanaged<HotKeyService>.fromOpaque(UnsafeMutableRawPointer(bitPattern: address)!).takeUnretainedValue().onPress?()
-        return noErr
+        let service = Unmanaged<HotKeyService>.fromOpaque(UnsafeMutableRawPointer(bitPattern: address)!).takeUnretainedValue()
+        return service.handlePress(id)
     }
 }
 
 final class HotKeyService {
     var onPress: (() -> Void)?
+    private static let signature: OSType = 0x434C4950
     private var reference: EventHotKeyRef?
     private var handler: EventHandlerRef?
-    init() {
-        var type = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
-        InstallEventHandler(GetApplicationEventTarget(), hotKeyHandler, 1, &type, Unmanaged.passUnretained(self).toOpaque(), &handler)
-    }
+    private var shortcutID: UInt32 = 0
+
     func register(_ shortcut: Shortcut) throws {
+        let dispatcher = GetEventDispatcherTarget()
+        if handler == nil {
+            var type = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
+            let status = InstallEventHandler(dispatcher, hotKeyHandler, 1, &type,
+                                             Unmanaged.passUnretained(self).toOpaque(), &handler)
+            guard status == noErr else { throw ShortcutError.unavailable }
+        }
         // Register the replacement before releasing the old shortcut.
+        let nextID = shortcutID &+ 1
         var replacement: EventHotKeyRef?
         let result = RegisterEventHotKey(shortcut.keyCode, shortcut.modifiers,
-            EventHotKeyID(signature: 0x434C4950, id: 1), GetApplicationEventTarget(), 0, &replacement)
-        guard result == noErr else { throw ShortcutError.unavailable }
+            EventHotKeyID(signature: Self.signature, id: nextID), dispatcher, 0, &replacement)
+        guard result == noErr, let replacement else { throw ShortcutError.unavailable }
         if let reference { UnregisterEventHotKey(reference) }
         reference = replacement
+        shortcutID = nextID
+    }
+
+    fileprivate func handlePress(_ id: EventHotKeyID) -> OSStatus {
+        guard reference != nil, id.signature == Self.signature, id.id == shortcutID else {
+            return OSStatus(eventNotHandledErr)
+        }
+        onPress?()
+        return noErr
     }
     func stop() {
         if let reference { UnregisterEventHotKey(reference); self.reference = nil }
