@@ -94,7 +94,9 @@ struct SettingsView: View {
                         HStack {
                             Text(appName(for: id)).lineLimit(1)
                             Spacer()
-                            Button { prefs.exclusions.removeAll { $0 == id } } label: { Image(systemName: "minus.circle") }.buttonStyle(.plain).accessibilityLabel(strings("Remove exclusion %@", id))
+                            Button { prefs.exclusions.removeAll { $0 == id } } label: { Image(systemName: "minus.circle") }
+                                .buttonStyle(.plain)
+                                .iconActionHelp(strings("Remove exclusion %@", id))
                         }
                     }
                     Button(strings("Add App…")) { pickExcludedApplication() }
@@ -103,6 +105,7 @@ struct SettingsView: View {
                 if let error { Section { Text(error.text(strings: strings)).foregroundStyle(.red).textSelection(.enabled) } }
             }.formStyle(.grouped)
         }.frame(width: 680, height: 700)
+            .iconActionTooltips()
             .onAppear { loginEnabled = prefs.launchAtLogin }
             .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in accessibility = AXIsProcessTrusted(); loginEnabled = prefs.launchAtLogin }
             .onChange(of: prefs.historyLimit) { prune() }

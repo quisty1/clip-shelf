@@ -25,6 +25,9 @@
 "Try another search or content type." = "Попробуйте другой запрос или тип.";
 "PREVIEW" = "ПРЕДПРОСМОТР";
 "Expand Preview" = "Увеличить предпросмотр";
+"Edit Text" = "Редактировать текст";
+"Clipboard Text" = "Текст из буфера обмена";
+"Edits are saved as plain text." = "Изменённый текст сохраняется без форматирования.";
 "Clipboard" = "Буфер обмена";
 "Formatting preserved" = "Форматирование сохранено";
 "Kept until you delete it" = "Сохраняется до удаления";
@@ -34,6 +37,7 @@
 "↑ ↓ to navigate\n↵ to paste" = "↑ ↓ для навигации\n↵ для быстрой вставки";
 "↑ ↓ select" = "↑ ↓ выбор";
 "⌘↵ copy" = "⌘↵ копировать";
+"⌘S save" = "⌘S сохранить";
 "esc close" = "esc закрыть";
 "Create a collection first" = "Сначала создайте коллекцию";
 "New Collection…" = "Новая коллекция…";
@@ -42,11 +46,11 @@
 "Edit Snippet…" = "Редактировать шаблон…";
 "Save as Snippet…" = "Сохранить как шаблон…";
 "Remove from Favorites" = "Убрать из избранного";
-"Add to Favorites" = "В избранное";
+"Add to Favorites" = "Добавить в избранное";
+"More Actions" = "Другие действия";
 "Collections" = "Коллекции";
 "Delete Item" = "Удалить запись";
 "Image Preview" = "Предпросмотр изображения";
-"Showing an excerpt. Open the expanded preview for the full text." = "Показан фрагмент. Откройте увеличенный предпросмотр.";
 "ClipShelf · everything stays on your Mac" = "ClipShelf · всё остаётся на вашем Mac";
 "Done" = "Готово";
 "General" = "Основное";

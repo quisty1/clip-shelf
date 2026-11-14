@@ -18,6 +18,8 @@ struct ShelfView: View {
     @State private var collectionDraft: CollectionDraft?
     @State private var snippetDraft: SnippetDraft?
     @State private var clearConfirmation = false
+    @State private var editingPreviewID: UUID?
+    @State private var previewDraft = ""
     @FocusState private var searchFocused: Bool
 
     private var visible: [ClipEntry] {
@@ -31,6 +33,7 @@ struct ShelfView: View {
         }
     }
     private var selected: ClipEntry? { visible.first { $0.id == selectedID } }
+    private var isEditingPreview: Bool { editingPreviewID != nil && editingPreviewID == selectedID }
     private var scopeTitle: String {
         switch scope {
         case .history: strings("History")
@@ -52,30 +55,41 @@ struct ShelfView: View {
                         .textFieldStyle(.plain).focused($searchFocused)
                         .accessibilityLabel(strings("Search history"))
                     if !query.isEmpty {
-                        Button { query = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }.buttonStyle(.plain).accessibilityLabel(strings("Clear search"))
+                        Button { query = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
+                            .buttonStyle(.plain)
+                            .iconActionHelp(strings("Clear search"))
                     } else { Text("⌘F").font(.caption).foregroundStyle(.tertiary) }
                 }
                 .padding(10).background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 9))
                 .frame(maxWidth: 440)
+                .disabled(isEditingPreview)
                 Button { monitorPause() } label: { Image(systemName: app.preferences.paused ? "play.circle" : "pause.circle") }
-                    .buttonStyle(.plain).font(.title3).help(app.preferences.paused ? strings("Resume Recording") : strings("Pause Recording"))
+                    .buttonStyle(.plain).font(.title3)
+                    .iconActionHelp(strings(app.preferences.paused ? "Resume Recording" : "Pause Recording"))
                 Button { app.showSettings = true } label: { Image(systemName: "gearshape") }
-                    .buttonStyle(.plain).font(.title3).help(strings("Settings"))
+                    .buttonStyle(.plain).font(.title3)
+                    .iconActionHelp(strings("Settings"))
             }
             .padding(.horizontal, 22).padding(.top, 30).padding(.bottom, 18)
             Divider()
             HStack(spacing: 0) {
-                sidebar.frame(width: 185)
+                sidebar.frame(width: 185).disabled(isEditingPreview)
                 Divider()
-                history.frame(minWidth: 300, maxWidth: .infinity)
+                history.frame(minWidth: 300, maxWidth: .infinity).disabled(isEditingPreview)
                 Divider()
                 preview.frame(width: 330)
             }
             Divider()
             footer
             if let notice = app.notice {
-                HStack { Image(systemName: "info.circle"); Text(notice.text(strings: strings)).textSelection(.enabled); Spacer(); Button { app.notice = nil } label: { Image(systemName: "xmark") }.buttonStyle(.plain) }
-                    .font(.callout).padding(12).background(.tint.opacity(0.12))
+                HStack {
+                    Image(systemName: "info.circle")
+                    Text(notice.text(strings: strings)).textSelection(.enabled)
+                    Spacer()
+                    Button { app.notice = nil } label: { Image(systemName: "xmark") }
+                        .buttonStyle(.plain)
+                        .iconActionHelp(strings("Dismiss"))
+                }.font(.callout).padding(12).background(.tint.opacity(0.12))
             }
             if let error = app.monitor.errorMessage {
                 HStack { Image(systemName: "exclamationmark.triangle"); Text(error.text(strings: strings)); Spacer(); Button(strings("Dismiss")) { app.monitor.errorMessage = nil } }
@@ -83,15 +97,19 @@ struct ShelfView: View {
             }
         }
         .background(Color(nsColor: .windowBackgroundColor))
+        .iconActionTooltips()
         .tint(Color(red: 0.15, green: 0.50, blue: 0.44))
         .accentColor(Color(red: 0.15, green: 0.50, blue: 0.44))
-        .background(KeyboardRouter(active: !app.showSettings && !app.showOnboarding && collectionDraft == nil && snippetDraft == nil && !clearConfirmation,
+        .background(KeyboardRouter(active: !isEditingPreview && !app.showSettings && !app.showOnboarding && collectionDraft == nil && snippetDraft == nil && !clearConfirmation,
             move: moveSelection, submit: { copy in if let selected { app.use(selected, copyOnly: copy) } },
             escape: { app.hide() }, focus: { searchFocused = true }))
         .onAppear { resetSearch() }
         .onChange(of: app.presentationID) { resetSearch() }
         .onChange(of: visible.map(\.id)) {
-            if !visible.contains(where: { $0.id == selectedID }) { selectedID = visible.first?.id }
+            if !visible.contains(where: { $0.id == selectedID }) {
+                if isEditingPreview { finishPreviewEditing() }
+                selectedID = visible.first?.id
+            }
         }
         .onChange(of: scope) { selectedID = visible.first?.id; searchFocused = true }
         .alert(strings("Clear History?"), isPresented: $clearConfirmation) {
@@ -117,7 +135,9 @@ struct ShelfView: View {
             HStack {
                 Text(strings("COLLECTIONS")).font(.system(size: 10, weight: .semibold)).tracking(1).foregroundStyle(.secondary)
                 Spacer()
-                Button { collectionDraft = CollectionDraft() } label: { Image(systemName: "plus") }.buttonStyle(.plain).help(strings("Create Collection"))
+                Button { collectionDraft = CollectionDraft() } label: { Image(systemName: "plus") }
+                    .buttonStyle(.plain)
+                    .iconActionHelp(strings("Create Collection"))
             }.padding(.horizontal, 10).padding(.top, 28).padding(.bottom, 6)
             ScrollView {
                 VStack(spacing: 4) {
@@ -165,8 +185,7 @@ struct ShelfView: View {
                         Image(systemName: "trash")
                     }
                     .buttonStyle(.borderless)
-                    .help(strings("Clear History…"))
-                    .accessibilityLabel(strings("Clear History…"))
+                    .iconActionHelp(strings("Clear History…"))
                     .disabled(!app.repository.entries.contains { !$0.isProtected })
                 }
             }.padding(.horizontal, 18).padding(.top, 22).padding(.bottom, 12)
@@ -209,24 +228,57 @@ struct ShelfView: View {
                 HStack {
                     Text(strings("PREVIEW")).font(.system(size: 10, weight: .semibold)).tracking(1).foregroundStyle(.secondary)
                     Spacer()
-                    Button { app.perform { try app.repository.toggleFavorite(entry) } } label: { Image(systemName: entry.isFavorite ? "star.fill" : "star") }.buttonStyle(.plain).foregroundStyle(entry.isFavorite ? .orange : .secondary).help(strings("Favorites"))
-                    Button { app.expand(entry) } label: { Image(systemName: "arrow.up.left.and.arrow.down.right") }.buttonStyle(.plain).help(strings("Expand Preview"))
+                    if !isEditingPreview {
+                        if entry.kind != .image, let text = entry.text {
+                            Button {
+                                previewDraft = text
+                                editingPreviewID = entry.id
+                            } label: { Image(systemName: "pencil") }
+                                .buttonStyle(.plain)
+                                .iconActionHelp(strings("Edit Text"))
+                        }
+                        Button { app.perform { try app.repository.toggleFavorite(entry) } } label: {
+                            Image(systemName: entry.isFavorite ? "star.fill" : "star")
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(entry.isFavorite ? .orange : .secondary)
+                        .iconActionHelp(strings(entry.isFavorite ? "Remove from Favorites" : "Add to Favorites"))
+                        Button { app.expand(entry) } label: { Image(systemName: "arrow.up.left.and.arrow.down.right") }
+                            .buttonStyle(.plain)
+                            .iconActionHelp(strings("Expand Preview"))
+                    }
                 }
-                Text(entry.displayTitle(language: language)).font(.system(size: 16, weight: .semibold)).lineLimit(3)
-                PreviewContent(entry: entry, repository: app.repository, expanded: false)
+                PreviewContent(entry: entry, repository: app.repository, expanded: false, draft: isEditingPreview ? $previewDraft : nil)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                VStack(alignment: .leading, spacing: 7) {
-                    Label(entry.displaySource(language: language), systemImage: "app").lineLimit(1)
-                    Label(entry.lastCopiedAt.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened).locale(language.locale)), systemImage: "clock")
-                    if entry.rtf != nil || entry.html != nil { Label(strings("Formatting preserved"), systemImage: "textformat") }
-                    if entry.isProtected { Label(strings("Kept until you delete it"), systemImage: "pin") }
-                }.font(.system(size: 11)).foregroundStyle(.secondary)
-                HStack {
-                    Menu { collectionMenu(entry) } label: { Label(strings("Add to Collection"), systemImage: "folder.badge.plus") }
-                    Menu { entryMenu(entry) } label: { Image(systemName: "ellipsis") }.menuStyle(.borderlessButton).frame(width: 28)
+                if isEditingPreview {
+                    if entry.rtf != nil || entry.html != nil {
+                        Text(strings("Edits are saved as plain text.")).font(.caption).foregroundStyle(.secondary)
+                    }
+                    HStack {
+                        Spacer()
+                        Button(strings("Cancel"), action: finishPreviewEditing).keyboardShortcut(.cancelAction)
+                        Button(strings("Save")) { savePreview(entry) }
+                            .keyboardShortcut("s", modifiers: .command)
+                            .buttonStyle(.borderedProminent)
+                            .disabled(previewDraft.isEmpty || previewDraft == entry.text)
+                    }
+                } else {
+                    VStack(alignment: .leading, spacing: 7) {
+                        Label(entry.displaySource(language: language), systemImage: "app").lineLimit(1)
+                        Label(entry.lastCopiedAt.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened).locale(language.locale)), systemImage: "clock")
+                        if entry.rtf != nil || entry.html != nil { Label(strings("Formatting preserved"), systemImage: "textformat") }
+                        if entry.isProtected { Label(strings("Kept until you delete it"), systemImage: "pin") }
+                    }.font(.system(size: 11)).foregroundStyle(.secondary)
+                    HStack {
+                        Menu { collectionMenu(entry) } label: { Label(strings("Add to Collection"), systemImage: "folder.badge.plus") }
+                        Menu { entryMenu(entry) } label: { Image(systemName: "ellipsis") }
+                            .menuStyle(.borderlessButton)
+                            .frame(width: 28)
+                            .iconActionHelp(strings("More Actions"))
+                    }
+                    Button { app.use(entry) } label: { HStack { Text(strings("Paste")); Spacer(); Text("↵").foregroundStyle(.white.opacity(0.7)) }.padding(.vertical, 3) }
+                        .buttonStyle(ShelfPrimaryButtonStyle())
                 }
-                Button { app.use(entry) } label: { HStack { Text(strings("Paste")); Spacer(); Text("↵").foregroundStyle(.white.opacity(0.7)) }.padding(.vertical, 3) }
-                    .buttonStyle(ShelfPrimaryButtonStyle())
             }.padding(22)
         } else {
             VStack(spacing: 12) {
@@ -242,9 +294,13 @@ struct ShelfView: View {
             Circle().fill(app.preferences.paused ? Color.orange : (app.monitor.canRead ? Color.accentColor : .orange)).frame(width: 5, height: 5)
             Text(app.monitor.status).lineLimit(1)
             Spacer()
-            Text(strings("↑ ↓ select")).padding(.trailing, 10)
-            Text(strings("⌘↵ copy")).padding(.trailing, 10)
-            Text(strings("esc close"))
+            if isEditingPreview {
+                Text(strings("⌘S save"))
+            } else {
+                Text(strings("↑ ↓ select")).padding(.trailing, 10)
+                Text(strings("⌘↵ copy")).padding(.trailing, 10)
+                Text(strings("esc close"))
+            }
         }.font(.system(size: 10)).foregroundStyle(.secondary).padding(.horizontal, 20).padding(.vertical, 12)
     }
 
@@ -274,7 +330,19 @@ struct ShelfView: View {
         Button(strings("Delete Item"), role: .destructive) { app.perform { try app.repository.delete(entry) } }
     }
     private func monitorPause() { app.monitor.ignoreCurrent(); app.preferences.paused.toggle() }
-    private func resetSearch() { query = ""; selectedID = visible.first?.id; searchFocused = true }
+    private func savePreview(_ entry: ClipEntry) {
+        guard editingPreviewID == entry.id, !previewDraft.isEmpty, previewDraft != entry.text else { return }
+        do {
+            try app.repository.edit(entry, title: entry.title, text: previewDraft, snippet: entry.isSnippet)
+            finishPreviewEditing()
+        } catch { app.notify(error) }
+    }
+    private func finishPreviewEditing() {
+        editingPreviewID = nil
+        previewDraft = ""
+        searchFocused = true
+    }
+    private func resetSearch() { finishPreviewEditing(); query = ""; selectedID = visible.first?.id }
     private func moveSelection(_ delta: Int) {
         guard !visible.isEmpty else { return }
         let index = selectedID.flatMap { id in visible.firstIndex { $0.id == id } } ?? 0
@@ -346,18 +414,32 @@ struct PreviewContent: View {
     let entry: ClipEntry
     let repository: ClipRepository
     let expanded: Bool
+    var draft: Binding<String>? = nil
+    @FocusState private var editorFocused: Bool
     var body: some View {
         if entry.kind == .image, let url = repository.imageURL(for: entry) {
             Thumbnail(url: url).frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding(8).background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 10))
                 .accessibilityLabel(strings("Image Preview"))
         } else {
-            ScrollView {
-                Text(expanded ? (entry.text ?? "") : String((entry.text ?? "").prefix(12_000)))
-                    .font(.system(size: expanded ? 15 : 12, design: .monospaced)).lineSpacing(5)
-                    .textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading).padding(14)
-                if !expanded && (entry.text?.count ?? 0) > 12_000 { Text(strings("Showing an excerpt. Open the expanded preview for the full text.")).font(.caption).foregroundStyle(.secondary).padding(8) }
-            }.background(.quaternary.opacity(0.30), in: RoundedRectangle(cornerRadius: 10))
+            Group {
+                if let draft {
+                    TextEditor(text: draft)
+                        .scrollContentBackground(.hidden)
+                        .autocorrectionDisabled()
+                        .padding(10)
+                        .accessibilityLabel(strings("Clipboard Text"))
+                        .focused($editorFocused)
+                        .onAppear { editorFocused = true }
+                } else {
+                    ScrollView {
+                        Text(entry.text ?? "")
+                            .textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading).padding(14)
+                    }.id(entry.id)
+                }
+            }
+            .font(.system(size: expanded ? 15 : 12, design: .monospaced)).lineSpacing(5)
+            .background(.quaternary.opacity(0.30), in: RoundedRectangle(cornerRadius: 10))
         }
     }
 }

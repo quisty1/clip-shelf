@@ -6,6 +6,7 @@ import ClipShelfCore
     @MainActor static func main() throws {
         let application = NSApplication.shared
         application.setActivationPolicy(.accessory)
+        application.finishLaunching()
         let suite = "ClipShelfWindowChecks.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -41,6 +42,7 @@ import ClipShelfCore
         monitor.capturePending()
         guard controller.repository.entries.count == 1 else { print("FAIL imported paused clipboard"); exit(1) }
         print("PASS clipboard recording, status, existing and paused content exclusion")
+        try checkTextPreview(controller, application: application)
         let image = ClipEntry(payload: ClipPayload(png: Data([1])), imageName: nil, sourceName: "", sourceID: "", at: Date())
         controller.expand(image)
         controller.expand(image)
@@ -58,6 +60,30 @@ import ClipShelfCore
         guard application.appearance == nil else { print("FAIL system appearance override remains"); exit(1) }
         guard application.mainMenu?.items.last?.title == "Правка" else { print("FAIL translated native menu"); exit(1) }
         print("PASS multiple preview titles, live appearance mappings, native menus")
+    }
+
+    private static func checkTextPreview(_ controller: AppController, application: NSApplication) throws {
+        let tail = "End of the long clipboard item"
+        let original = "Clipboard heading\n" + String(repeating: "A line of copied text with spaces.\n", count: 400) + tail
+        try controller.repository.capture(ClipPayload(text: original), sourceName: "Test source")
+        controller.show()
+        defer { controller.hide() }
+        guard let panel = application.windows.first(where: { $0 is ShelfPanel && $0.isVisible }) else {
+            print("FAIL clipboard preview panel is missing"); exit(1)
+        }
+
+        panel.contentView?.layoutSubtreeIfNeeded()
+        RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.05))
+        func showsFullText(_ view: NSView) -> Bool {
+            view.accessibilityChildren()?.contains { child in
+                let value: Any? = (child as AnyObject).accessibilityValue?()
+                return (value as? String) == original
+            } == true || view.subviews.contains { showsFullText($0) }
+        }
+        guard let content = panel.contentView, showsFullText(content) else {
+            print("FAIL the preview does not expose the entire copied text"); exit(1)
+        }
+        print("PASS full text in the regular preview")
     }
 
     private static func checkSecureInputPresentation(_ controller: AppController, application: NSApplication) {

@@ -25,6 +25,9 @@
 "Try another search or content type." = "Try another search or content type.";
 "PREVIEW" = "PREVIEW";
 "Expand Preview" = "Expand Preview";
+"Edit Text" = "Edit Text";
+"Clipboard Text" = "Clipboard Text";
+"Edits are saved as plain text." = "Edits are saved as plain text.";
 "Clipboard" = "Clipboard";
 "Formatting preserved" = "Formatting preserved";
 "Kept until you delete it" = "Kept until you delete it";
@@ -34,6 +37,7 @@
 "↑ ↓ to navigate\n↵ to paste" = "↑ ↓ to navigate\n↵ to paste";
 "↑ ↓ select" = "↑ ↓ select";
 "⌘↵ copy" = "⌘↵ copy";
+"⌘S save" = "⌘S save";
 "esc close" = "esc close";
 "Create a collection first" = "Create a collection first";
 "New Collection…" = "New Collection…";
@@ -43,10 +47,10 @@
 "Save as Snippet…" = "Save as Snippet…";
 "Remove from Favorites" = "Remove from Favorites";
 "Add to Favorites" = "Add to Favorites";
+"More Actions" = "More Actions";
 "Collections" = "Collections";
 "Delete Item" = "Delete Item";
 "Image Preview" = "Image Preview";
-"Showing an excerpt. Open the expanded preview for the full text." = "Showing an excerpt. Open the expanded preview for the full text.";
 "ClipShelf · everything stays on your Mac" = "ClipShelf · everything stays on your Mac";
 "Done" = "Done";
 "General" = "General";
