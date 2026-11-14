@@ -1,8 +1,37 @@
 # ClipShelf
 
+[English](#english) · [Русский](#русский)
+
+## English
+
+ClipShelf is a menu bar clipboard manager for Apple Silicon Macs running macOS 14 or later. It keeps a searchable history of text, links and images, with favorites, collections and reusable templates. The interface supports English and Russian. Everything stays on your Mac.
+
+### Build and open
+
+With Swift 6.2 or later from the macOS Command Line Tools:
+
+```sh
+git clone https://github.com/quisty1/clip-shelf.git
+cd clip-shelf
+bash scripts/build-app.sh
+open dist/ClipShelf.app
+```
+
+Move the app to Applications for regular use. Follow the welcome screen to enable clipboard reading where macOS requires it, and grant permission for direct paste only if you want that feature. Copy something new, then press **⌘⇧V** or click the menu bar icon. Use **⌘F** to search, **Enter** to paste into the previous app, or **⌘Enter** to copy and close. The app uses an ad hoc signature; macOS may ask for permissions again after a rebuild.
+
+### History and privacy
+
+History defaults to 1,000 ordinary items over 30 days. Favorites, templates and items in collections stay until you remove them. Use pause or app exclusions for sensitive content. Core Data and images are stored under `~/Library/Application Support/ClipShelf/`; the app adds no separate encryption. File and folder copies are ignored. Set language and appearance in Settings.
+
+### Checks
+
+Run `swift run ClipShelfChecks` for behavior checks or `bash scripts/check-interface.sh` in an active macOS session for native window checks.
+
+## Русский
+
 Нативный менеджер буфера обмена для Mac с Apple Silicon и macOS 14 или новее. Интерфейс на английском и русском; по умолчанию — English. Работает локально, без аккаунта, сервера, аналитики и сетевых запросов.
 
-## Запуск
+### Запуск
 
 1. Распакуйте `ClipShelf-macOS.zip`, если используете архив приложения.
 2. Перетащите `ClipShelf.app` в «Программы» и откройте двойным щелчком. Приложение появится в строке меню.
@@ -14,11 +43,11 @@
 
 Сборка подписана локально (ad hoc), без Apple Developer ID и нотарификации. Она предназначена для локального использования на вашем Mac. После самостоятельной пересборки macOS может потребовать заново предоставить разрешение на вставку. Если переключатель ClipShelf включён, но приложение сообщает об отсутствии доступа, запись может относиться к прежней сборке: выделите ClipShelf в этом разделе, нажмите «−», затем «+» и добавьте текущую `.app` заново. Кнопка «Показать текущее приложение в Finder» в настройках ClipShelf помогает выбрать правильный файл.
 
-## Язык и оформление
+### Язык и оформление
 
 В настройках → **Appearance / Оформление** выберите **English / Русский** и тему **System / Light / Dark** (Системная / Светлая / Тёмная). Изменения применяются сразу ко всем окнам и меню и сохраняются между запусками. По умолчанию, включая обновление с прежней версии, используются English и системная тема. Системная тема следует оформлению macOS.
 
-## Управление
+### Управление
 
 | Действие | Клавиши |
 |---|---|
@@ -38,7 +67,7 @@
 
 Щелчок правой кнопкой по значку в строке меню открывает паузу, настройки и команду завершения. Закрытие окна оставляет приложение работающим. Автозапуск выключен; его можно включить в настройках. macOS может запросить отдельное подтверждение объекта входа.
 
-## Хранение и приватность
+### Хранение и приватность
 
 - По умолчанию сохраняются 1000 обычных записей за 30 дней. Избранное, шаблоны и записи коллекций сохраняются до ручного удаления.
 - Данные: `~/Library/Application Support/ClipShelf/`. Метаданные и текст — локальная база Core Data / SQLite, изображения — папка `Images`. Настройки — стандартные настройки приложения `app.clipshelf.mac`.
@@ -50,12 +79,13 @@
 - Изображения: PNG/TIFF до 20 МБ; TIFF преобразуется в PNG. Ограничение для текста, RTF и HTML при копировании — 5 МБ на формат. Файлы и папки не сохраняются.
 - Если предыдущее приложение закрылось, фокус изменился или разрешение отозвано, ClipShelf оставляет выбранное в буфере и показывает подсказку вместо отправки вставки в другое приложение.
 
-## Сборка из исходников
+### Сборка из исходников
 
 Нужны Command Line Tools со Swift 6.2 или новее. Сторонних зависимостей нет.
 
 ```sh
-cd ClipShelf
+git clone https://github.com/quisty1/clip-shelf.git
+cd clip-shelf
 bash scripts/build-app.sh
 open dist/ClipShelf.app
 ```
@@ -70,7 +100,7 @@ bash scripts/build-app.sh /полный/путь/к/каталогу
 
 Модели используют Core Data вместо SwiftData: в установленных Command Line Tools отсутствует плагин `SwiftDataMacros`. Формат хранения локальный, синхронизации с iCloud нет.
 
-## Проверки
+### Проверки
 
 ```sh
 swift run ClipShelfChecks
